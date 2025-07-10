@@ -24,9 +24,6 @@ echo "-- Installing Python dependencies... --"
 source "$PROJECT_DIR/backend/venv/bin/activate"
 pip3 install -r "$PROJECT_DIR/backend/requirements.txt"
 
-# 4. Restart the backend service
-# This command uses systemd to restart the service. We will set this up.
-echo "-- Restarting backend service... --"
-sudo systemctl restart rexloop-backend.service
+# The systemd service has Restart=always, so the engine will restart automatically after this script exits.
 
 echo "-- Deployment Finished --"
