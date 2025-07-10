@@ -3,6 +3,7 @@ from pathlib import Path
 import sys
 
 async def run_deploy_script(websocket):
+    print("[Deploy] run_deploy_script called.")
     """Launches the refresh.sh script as a detached process and exits the current process."""
     deploy_script_path = Path(__file__).parent / "deploy.sh"
     print(f"[Deploy] Launching deploy script: {deploy_script_path}")

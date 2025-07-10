@@ -29,6 +29,7 @@ async def websocket_handler(websocket, queue: asyncio.Queue):
             try:
                 msg_data = json.loads(message)
                 if msg_data.get('command') == 'deploy':
+                    print("[Server] Received deploy command. Calling run_deploy_script...")
                     await run_deploy_script(websocket)
                 elif msg_data.get('command') == 'list_midi_files':
                     midi_files = list_midi_files_in_loops_dir()
