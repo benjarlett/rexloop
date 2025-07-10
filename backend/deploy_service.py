@@ -7,7 +7,7 @@ from pathlib import Path
 import json
 
 # --- Configuration ---
-LOCAL_HOST = "127.0.0.1" # Listen only on localhost
+LOCAL_HOST = "0.0.0.0" # Listen on all network interfaces
 LOCAL_PORT = 8766        # A new port for the deploy service
 
 # --- Globals ---
