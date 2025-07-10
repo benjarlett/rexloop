@@ -54,6 +54,8 @@ async def play_midi_file(midi_file: mido.MidiFile):
     print(f"Playing MIDI file: {midi_file.filename}")
     for msg in midi_file.play():
         midi_out_port.send(msg)
+        formatted_msg = format_midi_message(msg) # Format the outgoing message
+        asyncio.run_coroutine_threadsafe(midi_message_queue.put(formatted_msg), asyncio.get_running_loop()) # Put into queue
         await asyncio.sleep(msg.time) # Wait for the message's delta time
     print("Finished playing MIDI file.")
 
