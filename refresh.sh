@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -x # Enable debug output
+
 # This script automates the process of refreshing the RexLoop project on the Raspberry Pi.
 # It should be run from the project root directory (~/rexloop).
 
