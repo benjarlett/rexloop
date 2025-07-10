@@ -24,9 +24,9 @@ connected_clients = set()
 def format_midi_message(msg: mido.Message) -> str:
     """Formats a mido message into a human-readable string."""
     if msg.type in ['note_on', 'note_off']:
-        return f"MIDI: {msg.type} ch={msg.channel} note={msg.note} vel={msg.velocity}"
+        return f"MIDI: {msg.channel} {msg.note} {msg.velocity}"
     elif msg.type == 'control_change':
-        return f"MIDI: cc ch={msg.channel} ctl={msg.control} val={msg.value}"
+        return f"MIDI: {msg.channel} {msg.control} {msg.value}"
     return f"MIDI: {msg.type}"
 
 def find_midi_port(name: str) -> str | None:
