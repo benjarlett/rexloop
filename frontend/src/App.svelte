@@ -4,7 +4,13 @@
   let lastMidiMessage = "Waiting for MIDI...";
   let deployLogs: string[] = [];
   let isDeploying = false;
-  let socket: WebSocket;
+
+  // Connection status indicators
+  let backendConnected = false; // Main engine connection
+  let deployServiceConnected = false; // Deployment service connection
+
+  let mainSocket: WebSocket; // Main backend socket
+  let deploySocket: WebSocket; // Deployment service socket
 
   let midiFiles: string[] = []; // To store the list of MIDI files
   let selectedMidiFile: string = ""; // The currently selected MIDI file
@@ -16,26 +22,35 @@
   const pi_ip_address = "192.168.1.142"; // Your Pi's IP
   const mac_ip_address = "localhost"; // Your Mac's localhost
 
-  function getSocketUrl(): string {
+  const mainBackendPort = 8765;
+  const deployServicePort = 8766;
+
+  function getMainBackendSocketUrl(): string {
     const ip = backendTarget === 'pi' ? pi_ip_address : mac_ip_address;
-    return `ws://${ip}:8765`;
+    return `ws://${ip}:${mainBackendPort}`;
   }
 
-  function connectWebSocket() {
-    if (socket) {
-      socket.close(); // Close existing connection if any
+  function getDeployServiceSocketUrl(): string {
+    const ip = backendTarget === 'pi' ? pi_ip_address : mac_ip_address;
+    return `ws://${ip}:${deployServicePort}`;
+  }
+
+  function connectMainBackend() {
+    if (mainSocket) {
+      mainSocket.close();
     }
 
-    const socket_url = getSocketUrl();
-    console.log(`Connecting to WebSocket at ${socket_url}`);
-    socket = new WebSocket(socket_url);
+    const socket_url = getMainBackendSocketUrl();
+    console.log(`Connecting to Main Backend at ${socket_url}`);
+    mainSocket = new WebSocket(socket_url);
 
-    socket.addEventListener('open', () => {
+    mainSocket.addEventListener('open', () => {
+      backendConnected = true;
       lastMidiMessage = `Connected to backend (${backendTarget}).`;
       requestMidiFiles(); // Request MIDI files on connection
     });
 
-    socket.addEventListener('message', (event) => {
+    mainSocket.addEventListener('message', (event) => {
       const message = event.data;
       try {
         const parsed = JSON.parse(message);
@@ -46,7 +61,52 @@
           if (midiFiles.length > 0 && !selectedMidiFile) {
             selectedMidiFile = midiFiles[0]; // Select the first file by default
           }
-        } else if (parsed.type === 'deploy_status') {
+        } else {
+          // Handle other JSON messages if needed
+          console.log("Received unknown JSON message from main backend:", parsed);
+        }
+      } catch (e) {
+        // Handle non-JSON messages (like simple MIDI messages)
+        if (message.startsWith('MIDI_LOADED:')) {
+          loadedMidiStatus = `Loaded: ${message.substring('MIDI_LOADED:'.length).trim()}`;
+        } else if (message.startsWith('MIDI_ERROR:')) {
+          loadedMidiStatus = `Error: ${message.substring('MIDI_ERROR:'.length).trim()}`;
+        } else {
+          lastMidiMessage = message;
+        }
+      }
+    });
+
+    mainSocket.addEventListener('close', () => {
+      backendConnected = false;
+      lastMidiMessage = "Connection to main backend lost.";
+    });
+
+    mainSocket.addEventListener('error', () => {
+      backendConnected = false;
+      lastMidiMessage = "Error connecting to main backend.";
+    });
+  }
+
+  function connectDeployService() {
+    if (deploySocket) {
+      deploySocket.close();
+    }
+
+    const socket_url = getDeployServiceSocketUrl();
+    console.log(`Connecting to Deploy Service at ${socket_url}`);
+    deploySocket = new WebSocket(socket_url);
+
+    deploySocket.addEventListener('open', () => {
+      deployServiceConnected = true;
+      deployLogs = ["Connected to deployment service."];
+    });
+
+    deploySocket.addEventListener('message', (event) => {
+      const message = event.data;
+      try {
+        const parsed = JSON.parse(message);
+        if (parsed.type === 'deploy_status') {
           if (parsed.status === 'started') {
             isDeploying = true;
             deployLogs = [parsed.message];
@@ -62,41 +122,37 @@
             deployLogs = [...deployLogs, `FAILED: ${parsed.message}`];
           }
         } else {
-          // Handle other JSON messages if needed
-          console.log("Received unknown JSON message:", parsed);
+          console.log("Received unknown JSON message from deploy service:", parsed);
         }
       } catch (e) {
-        // Handle non-JSON messages (like simple MIDI messages or old deploy logs)
-        if (message.startsWith('MIDI_LOADED:')) {
-          loadedMidiStatus = `Loaded: ${message.substring('MIDI_LOADED:'.length).trim()}`;
-        } else if (message.startsWith('MIDI_ERROR:')) {
-          loadedMidiStatus = `Error: ${message.substring('MIDI_ERROR:'.length).trim()}`;
-        } else {
-          lastMidiMessage = message;
-        }
+        deployLogs = [...deployLogs, `ERROR: Invalid JSON from deploy service: ${message}`];
       }
     });
 
-    socket.addEventListener('close', () => {
-      lastMidiMessage = "Connection lost.";
+    deploySocket.addEventListener('close', () => {
+      deployServiceConnected = false;
+      deployLogs = [...deployLogs, "Connection to deployment service lost."];
     });
 
-    socket.addEventListener('error', () => {
-      lastMidiMessage = "Error connecting.";
+    deploySocket.addEventListener('error', () => {
+      deployServiceConnected = false;
+      deployLogs = [...deployLogs, "Error connecting to deployment service."];
     });
   }
 
   function handleDeploy() {
-    if (socket && socket.readyState === WebSocket.OPEN) {
+    if (deploySocket && deploySocket.readyState === WebSocket.OPEN) {
       deployLogs = []; // Clear previous logs
       isDeploying = true;
-      socket.send(JSON.stringify({ command: 'deploy' })); // Send JSON command
+      deploySocket.send(JSON.stringify({ command: 'deploy' })); // Send JSON command to deploy service
+    } else {
+      deployLogs = ["ERROR: Deployment service not connected."];
     }
   }
 
   function handleLoadMidi() {
-    if (socket && socket.readyState === WebSocket.OPEN && selectedMidiFile) {
-      socket.send(JSON.stringify({
+    if (mainSocket && mainSocket.readyState === WebSocket.OPEN && selectedMidiFile) {
+      mainSocket.send(JSON.stringify({
         command: 'load_midi',
         filename: selectedMidiFile,
         trigger_note: midiTriggerNote
@@ -106,26 +162,31 @@
   }
 
   function requestMidiFiles() {
-    if (socket && socket.readyState === WebSocket.OPEN) {
-      socket.send(JSON.stringify({ command: 'list_midi_files' }));
+    if (mainSocket && mainSocket.readyState === WebSocket.OPEN) {
+      mainSocket.send(JSON.stringify({ command: 'list_midi_files' }));
     }
   }
 
-  // Initial connection on mount
+  // Initial connections on mount
   onMount(() => {
-    connectWebSocket();
+    connectMainBackend();
+    connectDeployService();
 
-    // Cleanup the connection when the component is destroyed
+    // Cleanup the connections when the component is destroyed
     return () => {
-      if (socket) {
-        socket.close();
+      if (mainSocket) {
+        mainSocket.close();
+      }
+      if (deploySocket) {
+        deploySocket.close();
       }
     };
   });
 
   // Reconnect when backendTarget changes
   $: if (backendTarget) {
-    connectWebSocket();
+    connectMainBackend();
+    connectDeployService();
   }
 
 </script>
@@ -133,6 +194,13 @@
 <main>
   <h1>RexLoop Controller - Test 1</h1>
   
+  <div class="connection-status-indicators">
+    <div class="status-light" class:connected={backendConnected}></div>
+    <span>Main Backend</span>
+    <div class="status-light" class:connected={deployServiceConnected}></div>
+    <span>Deploy Service</span>
+  </div>
+
   <div class="connection-target-select">
     <label for="backend-target">Connect to Backend:</label>
     <select id="backend-target" bind:value={backendTarget}>
@@ -210,6 +278,26 @@
     border: 1px solid #555;
     background-color: #333;
     color: #eee;
+  }
+
+  .connection-status-indicators {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-top: 1em;
+    gap: 10px;
+  }
+
+  .status-light {
+    width: 15px;
+    height: 15px;
+    border-radius: 50%;
+    background-color: #888; /* Grey for disconnected */
+    border: 1px solid #555;
+  }
+
+  .status-light.connected {
+    background-color: #00ff00; /* Green for connected */
   }
 
   .status-box {
