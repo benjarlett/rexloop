@@ -15,10 +15,11 @@ async def run_deploy_script(websocket):
     # This allows the current Python process to exit immediately,
     # letting systemd restart it with the new code after refresh.sh completes.
     subprocess.Popen(
-        ['/bin/bash', str(deploy_script_path)],
+        f"/bin/bash {deploy_script_path}",
         stdout=subprocess.DEVNULL, # Redirect stdout to /dev/null
         stderr=subprocess.DEVNULL, # Redirect stderr to /dev/null
-        start_new_session=True # Detach from current session
+        start_new_session=True,
+        shell=True # Execute the command through the shell
     )
     print("[Deploy] deploy.sh launched as detached process. Exiting current engine process.")
     # Send a message to the frontend indicating deployment started, but logs won't stream.
