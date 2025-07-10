@@ -15,23 +15,28 @@ async def run_deploy_script(websocket):
     # This allows the current Python process to exit immediately,
     # letting systemd restart it with the new code after refresh.sh completes.
     try:
-        process = await asyncio.create_subprocess_exec(
-            "/bin/bash",
-            str(deploy_script_path),
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
-        )
-        stdout, stderr = await process.communicate()
+        # Use a temporary file to capture output for debugging
+        log_file_path = "/tmp/deploy_log.txt"
+        with open(log_file_path, "w") as log_file:
+            process = await asyncio.create_subprocess_exec(
+                "/bin/bash",
+                str(deploy_script_path),
+                stdout=log_file,
+                stderr=log_file
+            )
+            await process.wait()
 
-        if stdout:
-            await websocket.send(f"DEPLOY_OUTPUT: {stdout.decode().strip()}")
-        if stderr:
-            await websocket.send(f"DEPLOY_ERROR: {stderr.decode().strip()}")
+        # Read the log file and send its content to the WebSocket
+        with open(log_file_path, "r") as log_file:
+            output = log_file.read()
+            await websocket.send(f"DEPLOY_LOG_START\n{output}\nDEPLOY_LOG_END")
 
         if process.returncode == 0:
             await websocket.send("DEPLOY_SUCCESS: Deployment script finished successfully.")
         else:
             await websocket.send(f"DEPLOY_FAILED: Deployment script exited with code {process.returncode}.")
+
+        print(f"[Deploy] Deployment script output written to {log_file_path}")
 
     except Exception as e:
         await websocket.send(f"DEPLOY_ERROR: Failed to run deployment script: {e}")
