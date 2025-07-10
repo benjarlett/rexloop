@@ -11,39 +11,27 @@
   let midiTriggerNote: number = 48; // Default trigger note for MIDI playback (C2)
   let loadedMidiStatus: string = "No MIDI file loaded.";
 
-  function handleDeploy() {
-    if (socket && socket.readyState === WebSocket.OPEN) {
-      deployLogs = []; // Clear previous logs
-      isDeploying = true;
-      socket.send(JSON.stringify({ command: 'deploy' })); // Send JSON command
-    }
+  // New state for backend selection
+  let backendTarget: 'pi' | 'mac' = 'pi'; // Default to Pi
+  const pi_ip_address = "192.168.1.142"; // Your Pi's IP
+  const mac_ip_address = "localhost"; // Your Mac's localhost
+
+  function getSocketUrl(): string {
+    const ip = backendTarget === 'pi' ? pi_ip_address : mac_ip_address;
+    return `ws://${ip}:8765`;
   }
 
-  function handleLoadMidi() {
-    if (socket && socket.readyState === WebSocket.OPEN && selectedMidiFile) {
-      socket.send(JSON.stringify({
-        command: 'load_midi',
-        filename: selectedMidiFile,
-        trigger_note: midiTriggerNote
-      }));
-      loadedMidiStatus = `Attempting to load ${selectedMidiFile} (Trigger: ${midiTriggerNote})...`;
+  function connectWebSocket() {
+    if (socket) {
+      socket.close(); // Close existing connection if any
     }
-  }
 
-  function requestMidiFiles() {
-    if (socket && socket.readyState === WebSocket.OPEN) {
-      socket.send(JSON.stringify({ command: 'list_midi_files' }));
-    }
-  }
-
-  onMount(() => {
-    const pi_ip_address = "192.168.1.142"; // <-- IMPORTANT: CHANGE THIS
-    const socket_url = `ws://${pi_ip_address}:8765`;
-
+    const socket_url = getSocketUrl();
+    console.log(`Connecting to WebSocket at ${socket_url}`);
     socket = new WebSocket(socket_url);
 
     socket.addEventListener('open', () => {
-      lastMidiMessage = "Connected to backend.";
+      lastMidiMessage = `Connected to backend (${backendTarget}).`;
       requestMidiFiles(); // Request MIDI files on connection
     });
 
@@ -87,15 +75,63 @@
     socket.addEventListener('error', () => {
       lastMidiMessage = "Error connecting.";
     });
+  }
 
-    return () => socket?.close();
+  function handleDeploy() {
+    if (socket && socket.readyState === WebSocket.OPEN) {
+      deployLogs = []; // Clear previous logs
+      isDeploying = true;
+      socket.send(JSON.stringify({ command: 'deploy' })); // Send JSON command
+    }
+  }
+
+  function handleLoadMidi() {
+    if (socket && socket.readyState === WebSocket.OPEN && selectedMidiFile) {
+      socket.send(JSON.stringify({
+        command: 'load_midi',
+        filename: selectedMidiFile,
+        trigger_note: midiTriggerNote
+      }));
+      loadedMidiStatus = `Attempting to load ${selectedMidiFile} (Trigger: ${midiTriggerNote})...`;
+    }
+  }
+
+  function requestMidiFiles() {
+    if (socket && socket.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({ command: 'list_midi_files' }));
+    }
+  }
+
+  // Initial connection on mount
+  onMount(() => {
+    connectWebSocket();
+
+    // Cleanup the connection when the component is destroyed
+    return () => {
+      if (socket) {
+        socket.close();
+      }
+    };
   });
+
+  // Reconnect when backendTarget changes
+  $: if (backendTarget) {
+    connectWebSocket();
+  }
 
 </script>
 
 <main>
   <h1>RexLoop Controller</h1>
   
+  <div class="connection-target-select">
+    <label for="backend-target">Connect to Backend:</label>
+    <select id="backend-target" bind:value={backendTarget}>
+      <option value="pi">Raspberry Pi ({pi_ip_address})</option>
+      <option value="mac">Mac (localhost)</option>
+    </select>
+  </div>
+
   <div class="status-box">
     <p>{lastMidiMessage}</p>
   </div>
@@ -119,9 +155,12 @@
   </div>
 
   <div class="deploy-section">
-    <button on:click={handleDeploy} disabled={isDeploying}>
+    <button on:click={handleDeploy} disabled={isDeploying || backendTarget === 'mac'}>
       {isDeploying ? 'Deploying...' : 'Deploy Latest Code'}
     </button>
+    {#if backendTarget === 'mac'}
+      <p class="deploy-warning">Deployment is only available when connected to Raspberry Pi.</p>
+    {/if}
     {#if deployLogs.length > 0}
       <div class="log-box">
         {#each deployLogs as log}
@@ -146,6 +185,22 @@
 
   h1 {
     color: #ff3e00;
+  }
+
+  .connection-target-select {
+    margin-bottom: 1em;
+  }
+
+  .connection-target-select label {
+    margin-right: 10px;
+  }
+
+  .connection-target-select select {
+    padding: 5px;
+    border-radius: 4px;
+    border: 1px solid #555;
+    background-color: #333;
+    color: #eee;
   }
 
   .status-box {
