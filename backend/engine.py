@@ -99,46 +99,14 @@ def midi_listener(port_name: str, trigger_note: int, loop: asyncio.AbstractEvent
         print(f"Error opening MIDI input port: {e}")
 
 async def run_deploy_script(websocket):
-    """Runs the deploy.sh script and streams its output to the client."""
-    deploy_script_path = Path(__file__).parent / "deploy.sh"
-    print(f"[Deploy] Attempting to run deploy script: {deploy_script_path}")
-    if not deploy_script_path.exists():
-        print(f"[Deploy] ERROR: deploy.sh script not found at {deploy_script_path}!")
-        await websocket.send("DEPLOY_ERROR: deploy.sh script not found!")
-        return
-
-    await websocket.send("DEPLOY_START: Starting deployment...")
-    try:
-        process = await asyncio.create_subprocess_shell(
-            f'bash "{str(deploy_script_path)}"' ,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            cwd=str(deploy_script_path.parent) # Ensure script runs from its directory
-        )
-        print(f"[Deploy] Subprocess started with PID: {process.pid}")
-
-        # Stream stdout
-        async for line in process.stdout:
-            decoded_line = line.decode().strip()
-            print(f"[Deploy] STDOUT: {decoded_line}")
-            await websocket.send(f"DEPLOY_LOG: {decoded_line}")
-
-        # Stream stderr
-        async for line in process.stderr:
-            decoded_line = line.decode().strip()
-            print(f"[Deploy] STDERR: {decoded_line}")
-            await websocket.send(f"DEPLOY_ERROR: {decoded_line}")
-
-        returncode = await process.wait()
-        print(f"[Deploy] Subprocess finished with return code: {returncode}")
-        if returncode == 0:
-            await websocket.send("DEPLOY_END: Deployment finished successfully.")
-        else:
-            await websocket.send(f"DEPLOY_ERROR: Deployment failed with code {returncode}.")
-
-    except Exception as e:
-        print(f"[Deploy] EXCEPTION: {e}")
-        await websocket.send(f"DEPLOY_ERROR: An error occurred during deployment: {e}")
+    print(f"[Deploy] run_deploy_script called.")
+    await websocket.send("DEPLOY_START: Starting deployment (debug mode)...")
+    await asyncio.sleep(2) # Simulate work
+    await websocket.send("DEPLOY_LOG: Simulated log message 1.")
+    await asyncio.sleep(1)
+    await websocket.send("DEPLOY_LOG: Simulated log message 2.")
+    await asyncio.sleep(1)
+    await websocket.send("DEPLOY_END: Deployment finished (debug mode).")
 
 async def midi_broadcaster():
     """Takes messages from the queue and sends them to all clients."""
