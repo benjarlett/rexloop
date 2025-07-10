@@ -1,29 +1,14 @@
 #!/bin/bash
 
-# This script is run by the backend engine to update itself.
-
-# --- Configuration ---
-# The directory where the rexloop project is on the Pi.
-PROJECT_DIR="/home/patch/rexloop"
-
-# --- Script ---
+# This script is run by the backend engine to trigger a full refresh.
 
 set -e # Exit immediately if a command exits with a non-zero status.
 
-echo "-- Starting Deployment --"
+echo "-- Triggering full project refresh --"
 
-# 1. Navigate to the project directory
-cd "$PROJECT_DIR"
+# Navigate to the project root and execute refresh.sh
+# The deploy.sh script is executed from the backend directory, so go up one level.
+cd ..
+./refresh.sh
 
-# 2. Pull the latest code from the main branch
-echo "-- Pulling latest code from Git... --"
-git pull origin main
-
-# 3. Install/update dependencies using the virtual environment
-echo "-- Installing Python dependencies... --"
-source "$PROJECT_DIR/backend/venv/bin/activate"
-pip3 install -r "$PROJECT_DIR/backend/requirements.txt"
-
-# The systemd service has Restart=always, so the engine will restart automatically after this script exits.
-
-echo "-- Deployment Finished --"
+echo "-- Refresh triggered successfully --"
