@@ -131,7 +131,7 @@
 </script>
 
 <main>
-  <h1>RexLoop Controller</h1>
+  <h1>RexLoop Controller - Test 1</h1>
   
   <div class="connection-target-select">
     <label for="backend-target">Connect to Backend:</label>
