@@ -6,36 +6,77 @@
   let isDeploying = false;
   let socket: WebSocket;
 
+  let midiFiles: string[] = []; // To store the list of MIDI files
+  let selectedMidiFile: string = ""; // The currently selected MIDI file
+  let midiTriggerNote: number = 48; // Default trigger note for MIDI playback (C2)
+  let loadedMidiStatus: string = "No MIDI file loaded.";
+
   function handleDeploy() {
     if (socket && socket.readyState === WebSocket.OPEN) {
       deployLogs = []; // Clear previous logs
       isDeploying = true;
-      socket.send('deploy');
+      socket.send(JSON.stringify({ command: 'deploy' })); // Send JSON command
+    }
+  }
+
+  function handleLoadMidi() {
+    if (socket && socket.readyState === WebSocket.OPEN && selectedMidiFile) {
+      socket.send(JSON.stringify({
+        command: 'load_midi',
+        filename: selectedMidiFile,
+        trigger_note: midiTriggerNote
+      }));
+      loadedMidiStatus = `Attempting to load ${selectedMidiFile} (Trigger: ${midiTriggerNote})...`;
+    }
+  }
+
+  function requestMidiFiles() {
+    if (socket && socket.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({ command: 'list_midi_files' }));
     }
   }
 
   onMount(() => {
-    const pi_ip_address = "192.168.1.100"; // <-- IMPORTANT: CHANGE THIS
+    const pi_ip_address = "192.168.1.142"; // <-- IMPORTANT: CHANGE THIS
     const socket_url = `ws://${pi_ip_address}:8765`;
 
     socket = new WebSocket(socket_url);
 
     socket.addEventListener('open', () => {
       lastMidiMessage = "Connected to backend.";
+      requestMidiFiles(); // Request MIDI files on connection
     });
 
     socket.addEventListener('message', (event) => {
       const message = event.data;
-      if (message.startsWith('DEPLOY_START')) {
-        isDeploying = true;
-        deployLogs = [message];
-      } else if (message.startsWith('DEPLOY_LOG') || message.startsWith('DEPLOY_ERROR')) {
-        deployLogs = [...deployLogs, message];
-      } else if (message.startsWith('DEPLOY_END')) {
-        isDeploying = false;
-        deployLogs = [...deployLogs, message];
-      } else {
-        lastMidiMessage = message;
+      try {
+        const parsed = JSON.parse(message);
+        if (parsed.type === 'midi_file_list') {
+          midiFiles = parsed.files;
+          if (midiFiles.length > 0 && !selectedMidiFile) {
+            selectedMidiFile = midiFiles[0]; // Select the first file by default
+          }
+        } else {
+          // Handle other JSON messages if needed
+          console.log("Received JSON message:", parsed);
+        }
+      } catch (e) {
+        // Handle non-JSON messages (like simple MIDI messages or deploy logs)
+        if (message.startsWith('DEPLOY_START')) {
+          isDeploying = true;
+          deployLogs = [message];
+        } else if (message.startsWith('DEPLOY_LOG') || message.startsWith('DEPLOY_ERROR')) {
+          deployLogs = [...deployLogs, message];
+        } else if (message.startsWith('DEPLOY_END')) {
+          isDeploying = false;
+          deployLogs = [...deployLogs, message];
+        } else if (message.startsWith('MIDI_LOADED:')) {
+          loadedMidiStatus = `Loaded: ${message.substring('MIDI_LOADED:'.length).trim()}`;
+        } else if (message.startsWith('MIDI_ERROR:')) {
+          loadedMidiStatus = `Error: ${message.substring('MIDI_ERROR:'.length).trim()}`;
+        } else {
+          lastMidiMessage = message;
+        }
       }
     });
 
@@ -59,6 +100,24 @@
     <p>{lastMidiMessage}</p>
   </div>
 
+  <div class="midi-load-section">
+    <h2>MIDI Loop Channel 1</h2>
+    <div class="input-group">
+      <label for="midi-file-select">Select MIDI File:</label>
+      <select id="midi-file-select" bind:value={selectedMidiFile}>
+        {#each midiFiles as file}
+          <option value={file}>{file}</option>
+        {/each}
+      </select>
+    </div>
+    <div class="input-group">
+      <label for="trigger-note">Trigger Note (0-127):</label>
+      <input type="number" id="trigger-note" bind:value={midiTriggerNote} min="0" max="127" />
+    </div>
+    <button on:click={handleLoadMidi}>Load MIDI Loop</button>
+    <p class="midi-status">{loadedMidiStatus}</p>
+  </div>
+
   <div class="deploy-section">
     <button on:click={handleDeploy} disabled={isDeploying}>
       {isDeploying ? 'Deploying...' : 'Deploy Latest Code'}
@@ -74,10 +133,88 @@
 </main>
 
 <style>
-  /* ... existing styles ... */
-  .deploy-section {
-    margin-top: 2em;
+  :root {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
+    background-color: #222;
+    color: #eee;
   }
+
+  main {
+    text-align: center;
+    padding: 2em;
+  }
+
+  h1 {
+    color: #ff3e00;
+  }
+
+  .status-box {
+    background-color: #333;
+    border: 1px solid #555;
+    border-radius: 8px;
+    padding: 20px;
+    margin-top: 2em;
+    min-height: 50px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+
+  .deploy-section, .midi-load-section {
+    margin-top: 2em;
+    padding: 1em;
+    border: 1px solid #444;
+    border-radius: 8px;
+    background-color: #2a2a2a;
+  }
+
+  .midi-load-section h2 {
+    color: #00ff99;
+    margin-top: 0;
+  }
+
+  .input-group {
+    margin-bottom: 1em;
+  }
+
+  .input-group label {
+    display: block;
+    margin-bottom: 0.5em;
+    font-weight: bold;
+  }
+
+  .midi-load-section input[type="text"],
+  .midi-load-section input[type="number"],
+  .midi-load-section select {
+    padding: 8px;
+    border-radius: 4px;
+    border: 1px solid #555;
+    background-color: #333;
+    color: #eee;
+    margin-right: 10px;
+    width: 200px;
+  }
+
+  .midi-load-section button {
+    background-color: #007bff;
+    color: white;
+    border: none;
+    padding: 8px 15px;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+  }
+
+  .midi-load-section button:hover {
+    background-color: #0056b3;
+  }
+
+  .midi-status {
+    margin-top: 1em;
+    font-style: italic;
+    color: #bbb;
+  }
+
   button {
     background-color: #ff3e00;
     color: white;
