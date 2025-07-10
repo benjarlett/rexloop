@@ -58,7 +58,6 @@ def midi_listener(port_name: str, trigger_note: int, loop: asyncio.AbstractEvent
             for msg in inport:
                 formatted_msg = format_midi_message(msg)
                 loop.call_soon_threadsafe(midi_message_queue.put_nowait, formatted_msg)
-                print(f"MIDI Listener: Put '{formatted_msg}' into queue.")
 
                 if msg.type == 'note_on' and msg.note == trigger_note:
                     print(f"Trigger note {trigger_note} received! Playing loop.")
@@ -100,7 +99,6 @@ async def midi_broadcaster():
     """Takes messages from the queue and sends them to all clients."""
     while True:
         message = await midi_message_queue.get()
-        print(f"MIDI Broadcaster: Sending '{message}' to {len(connected_clients)} clients.")
         if connected_clients:
             websockets.broadcast(connected_clients, message)
 
