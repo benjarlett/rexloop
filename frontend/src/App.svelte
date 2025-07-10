@@ -39,26 +39,35 @@
       const message = event.data;
       try {
         const parsed = JSON.parse(message);
+        
+        // Handle structured JSON messages from backend
         if (parsed.type === 'midi_file_list') {
           midiFiles = parsed.files;
           if (midiFiles.length > 0 && !selectedMidiFile) {
             selectedMidiFile = midiFiles[0]; // Select the first file by default
           }
+        } else if (parsed.type === 'deploy_status') {
+          if (parsed.status === 'started') {
+            isDeploying = true;
+            deployLogs = [parsed.message];
+          } else if (parsed.status === 'log') {
+            deployLogs = [...deployLogs, parsed.message];
+          } else if (parsed.status === 'error') {
+            deployLogs = [...deployLogs, `ERROR: ${parsed.message}`];
+          } else if (parsed.status === 'completed') {
+            isDeploying = false;
+            deployLogs = [...deployLogs, parsed.message];
+          } else if (parsed.status === 'failed') {
+            isDeploying = false;
+            deployLogs = [...deployLogs, `FAILED: ${parsed.message}`];
+          }
         } else {
           // Handle other JSON messages if needed
-          console.log("Received JSON message:", parsed);
+          console.log("Received unknown JSON message:", parsed);
         }
       } catch (e) {
-        // Handle non-JSON messages (like simple MIDI messages or deploy logs)
-        if (message.startsWith('DEPLOY_START')) {
-          isDeploying = true;
-          deployLogs = [message];
-        } else if (message.startsWith('DEPLOY_LOG') || message.startsWith('DEPLOY_ERROR')) {
-          deployLogs = [...deployLogs, message];
-        } else if (message.startsWith('DEPLOY_END')) {
-          isDeploying = false;
-          deployLogs = [...deployLogs, message];
-        } else if (message.startsWith('MIDI_LOADED:')) {
+        // Handle non-JSON messages (like simple MIDI messages or old deploy logs)
+        if (message.startsWith('MIDI_LOADED:')) {
           loadedMidiStatus = `Loaded: ${message.substring('MIDI_LOADED:'.length).trim()}`;
         } else if (message.startsWith('MIDI_ERROR:')) {
           loadedMidiStatus = `Error: ${message.substring('MIDI_ERROR:'.length).trim()}`;
@@ -164,7 +173,7 @@
     {#if deployLogs.length > 0}
       <div class="log-box">
         {#each deployLogs as log}
-          <p class={log.startsWith('DEPLOY_ERROR') ? 'log-error' : ''}>{log}</p>
+          <p class={log.startsWith('ERROR:') || log.startsWith('FAILED:') ? 'log-error' : ''}>{log}</p>
         {/each}
       </div>
     {/if}

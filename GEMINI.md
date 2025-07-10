@@ -32,7 +32,8 @@ This project is a real-time audio and MIDI processing system for live music perf
 *   **Audio/MIDI Engine:** Raspberry Pi 3 Model B Rev 1.2
 *   **Development Machine:** Mac
 *   **Controller:** iPhone or Mac via web browser
-*   **Audio/MIDI Interface:** Pisound
+*   **Audio/MIDI Interface (Pi):** Pisound
+*   **Audio/MIDI Interface (Mac):** Tascam US-800
 
 ## 3. Project Structure
 
