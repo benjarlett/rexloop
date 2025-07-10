@@ -14,16 +14,28 @@ async def run_deploy_script(websocket):
     # Launch the deploy.sh script as a detached process
     # This allows the current Python process to exit immediately,
     # letting systemd restart it with the new code after refresh.sh completes.
-    subprocess.Popen(
-        f"/bin/bash {deploy_script_path}",
-        stdout=subprocess.DEVNULL, # Redirect stdout to /dev/null
-        stderr=subprocess.DEVNULL, # Redirect stderr to /dev/null
-        start_new_session=True,
-        shell=True # Execute the command through the shell
-    )
-    print("[Deploy] deploy.sh launched as detached process. Exiting current engine process.")
-    # Send a message to the frontend indicating deployment started, but logs won't stream.
-    await websocket.send("DEPLOY_STARTED_DETACHED: Backend is updating. Check Pi's journalctl for full logs.")
-    # Exit the current process so systemd can restart it with the new code
-    # This will cause the frontend to lose connection temporarily.
-    sys.exit(0)
+    try:
+        process = await asyncio.create_subprocess_exec(
+            "/bin/bash",
+            str(deploy_script_path),
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        stdout, stderr = await process.communicate()
+
+        if stdout:
+            await websocket.send(f"DEPLOY_OUTPUT: {stdout.decode().strip()}")
+        if stderr:
+            await websocket.send(f"DEPLOY_ERROR: {stderr.decode().strip()}")
+
+        if process.returncode == 0:
+            await websocket.send("DEPLOY_SUCCESS: Deployment script finished successfully.")
+        else:
+            await websocket.send(f"DEPLOY_FAILED: Deployment script exited with code {process.returncode}.")
+
+    except Exception as e:
+        await websocket.send(f"DEPLOY_ERROR: Failed to run deployment script: {e}")
+
+    print("[Deploy] Deployment script execution finished.")
+    # Do NOT exit here. Let the engine continue running to report the output.
+    # The systemd service will handle restarting the engine after a successful deploy.
