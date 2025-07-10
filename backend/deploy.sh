@@ -9,6 +9,6 @@ echo "-- Triggering full project refresh --"
 # Navigate to the project root and execute refresh.sh
 # The deploy.sh script is executed from the backend directory, so go up one level.
 cd ..
-./refresh.sh
+bash ./refresh.sh
 
 echo "-- Refresh triggered successfully --"
