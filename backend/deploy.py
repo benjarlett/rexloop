@@ -15,15 +15,17 @@ async def run_deploy_script(websocket):
     # This allows the current Python process to exit immediately,
     # letting systemd restart it with the new code after refresh.sh completes.
     log_file_path = "/tmp/deploy_log.txt"
+    print(f"[Deploy] Attempting to run deploy script: {deploy_script_path}")
     try:
         with open(log_file_path, "w") as log_file:
             process = subprocess.run(
-                f"/bin/bash {deploy_script_path}",
-                shell=True,
+                [str(deploy_script_path)],
+                executable="/bin/bash", # Explicitly use bash
                 stdout=log_file,
                 stderr=log_file,
                 text=True  # Capture output as text
             )
+        print(f"[Deploy] Subprocess finished with return code: {process.returncode}")
 
         # Read the log file and send its content to the WebSocket
         with open(log_file_path, "r") as log_file:
@@ -35,8 +37,11 @@ async def run_deploy_script(websocket):
         else:
             await websocket.send(f"DEPLOY_FAILED: Deployment script exited with code {process.returncode}.")
 
+    except FileNotFoundError:
+        await websocket.send(f"DEPLOY_ERROR: Bash executable not found at /bin/bash. Check system path.")
+        print(f"[Deploy] Error: Bash executable not found at /bin/bash.")
     except Exception as e:
         await websocket.send(f"DEPLOY_ERROR: Failed to run deployment script: {e}")
         print(f"[Deploy] Error running deployment script: {e}")
 
-    print(f"[Deploy] Deployment script execution finished.")
+    print(f"[Deploy] Deployment script execution finished. Log at {log_file_path}")
