@@ -1,0 +1,4 @@
+websockets
+mido
+python-rtmidi
+simpleaudio
