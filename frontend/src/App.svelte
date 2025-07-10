@@ -7,10 +7,8 @@
 
   // Connection status indicators
   let backendConnected = false; // Main engine connection
-  let deployServiceConnected = false; // Deployment service connection
 
   let mainSocket: WebSocket; // Main backend socket
-  let deploySocket: WebSocket; // Deployment service socket
 
   let midiFiles: string[] = []; // To store the list of MIDI files
   let selectedMidiFile: string = ""; // The currently selected MIDI file
@@ -23,16 +21,10 @@
   const mac_ip_address = "localhost"; // Your Mac's localhost
 
   const mainBackendPort = 8765;
-  const deployServicePort = 8766;
 
   function getMainBackendSocketUrl(): string {
     const ip = backendTarget === 'pi' ? pi_ip_address : mac_ip_address;
     return `ws://${ip}:${mainBackendPort}`;
-  }
-
-  function getDeployServiceSocketUrl(): string {
-    const ip = backendTarget === 'pi' ? pi_ip_address : mac_ip_address;
-    return `ws://${ip}:${deployServicePort}`;
   }
 
   function connectMainBackend() {
@@ -71,6 +63,26 @@
           loadedMidiStatus = `Loaded: ${message.substring('MIDI_LOADED:'.length).trim()}`;
         } else if (message.startsWith('MIDI_ERROR:')) {
           loadedMidiStatus = `Error: ${message.substring('MIDI_ERROR:'.length).trim()}`;
+        } else if (message.startsWith('DEPLOY_LOG_START')) {
+          deployLogs = ["Starting full refresh..."];
+        } else if (message.startsWith('DEPLOY_LOG_END')) {
+          // Deployment finished, check logs for success/failure
+          isDeploying = false;
+          if (deployLogs.some(log => log.startsWith('FAILED:'))) {
+            deployLogs = [...deployLogs, "FAILED: Deployment failed."];
+          } else {
+            deployLogs = [...deployLogs, "SUCCESS: Deployment completed."];
+          }
+        } else if (message.startsWith('DEPLOY_OUTPUT:')) {
+          deployLogs = [...deployLogs, message.substring('DEPLOY_OUTPUT:'.length).trim()];
+        } else if (message.startsWith('DEPLOY_ERROR:')) {
+          deployLogs = [...deployLogs, `ERROR: ${message.substring('DEPLOY_ERROR:'.length).trim()}`];
+        } else if (message.startsWith('DEPLOY_SUCCESS:')) {
+          deployLogs = [...deployLogs, message.substring('DEPLOY_SUCCESS:'.length).trim()];
+          isDeploying = false;
+        } else if (message.startsWith('DEPLOY_FAILED:')) {
+          deployLogs = [...deployLogs, message.substring('DEPLOY_FAILED:'.length).trim()];
+          isDeploying = false;
         } else {
           lastMidiMessage = message;
         }
@@ -88,65 +100,13 @@
     });
   }
 
-  function connectDeployService() {
-    if (deploySocket) {
-      deploySocket.close();
-    }
-
-    const socket_url = getDeployServiceSocketUrl();
-    console.log(`Connecting to Deploy Service at ${socket_url}`);
-    deploySocket = new WebSocket(socket_url);
-
-    deploySocket.addEventListener('open', () => {
-      deployServiceConnected = true;
-      deployLogs = ["Connected to deployment service."];
-    });
-
-    deploySocket.addEventListener('message', (event) => {
-      const message = event.data;
-      try {
-        const parsed = JSON.parse(message);
-        if (parsed.type === 'deploy_status') {
-          if (parsed.status === 'started') {
-            isDeploying = true;
-            deployLogs = [parsed.message];
-          } else if (parsed.status === 'log') {
-            deployLogs = [...deployLogs, parsed.message];
-          } else if (parsed.status === 'error') {
-            deployLogs = [...deployLogs, `ERROR: ${parsed.message}`];
-          } else if (parsed.status === 'completed') {
-            isDeploying = false;
-            deployLogs = [...deployLogs, parsed.message];
-          } else if (parsed.status === 'failed') {
-            isDeploying = false;
-            deployLogs = [...deployLogs, `FAILED: ${parsed.message}`];
-          }
-        } else {
-          console.log("Received unknown JSON message from deploy service:", parsed);
-        }
-      } catch (e) {
-        deployLogs = [...deployLogs, `ERROR: Invalid JSON from deploy service: ${message}`];
-      }
-    });
-
-    deploySocket.addEventListener('close', () => {
-      deployServiceConnected = false;
-      deployLogs = [...deployLogs, "Connection to deployment service lost."];
-    });
-
-    deploySocket.addEventListener('error', () => {
-      deployServiceConnected = false;
-      deployLogs = [...deployLogs, "Error connecting to deployment service."];
-    });
-  }
-
   function handleDeploy() {
-    if (deploySocket && deploySocket.readyState === WebSocket.OPEN) {
+    if (mainSocket && mainSocket.readyState === WebSocket.OPEN) {
       deployLogs = []; // Clear previous logs
       isDeploying = true;
-      deploySocket.send(JSON.stringify({ command: 'deploy' })); // Send JSON command to deploy service
+      mainSocket.send(JSON.stringify({ command: 'deploy' })); // Send JSON command to main backend
     } else {
-      deployLogs = ["ERROR: Deployment service not connected."];
+      deployLogs = ["ERROR: Main backend not connected for deployment."];
     }
   }
 
@@ -170,15 +130,11 @@
   // Initial connections on mount
   onMount(() => {
     connectMainBackend();
-    connectDeployService();
 
     // Cleanup the connections when the component is destroyed
     return () => {
       if (mainSocket) {
         mainSocket.close();
-      }
-      if (deploySocket) {
-        deploySocket.close();
       }
     };
   });
@@ -186,7 +142,6 @@
   // Reconnect when backendTarget changes
   $: if (backendTarget) {
     connectMainBackend();
-    connectDeployService();
   }
 
 </script>
@@ -197,8 +152,6 @@
   <div class="connection-status-indicators">
     <div class="status-light" class:connected={backendConnected}></div>
     <span>Main Backend</span>
-    <div class="status-light" class:connected={deployServiceConnected}></div>
-    <span>Deploy Service</span>
   </div>
 
   <div class="connection-target-select">
