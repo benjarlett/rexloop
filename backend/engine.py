@@ -8,6 +8,8 @@ import subprocess
 from pathlib import Path
 import json
 
+from typing import Optional
+
 # --- Configuration ---
 DEFAULT_HOST = "0.0.0.0"
 DEFAULT_PORT = 8765
@@ -33,7 +35,7 @@ def format_midi_message(msg: mido.Message) -> str:
         return f"MIDI: {msg.channel} {msg.control} {msg.value}"
     return f"MIDI: {msg.type}"
 
-def find_midi_port(name: str, is_output: bool = False) -> str | None:
+def find_midi_port(name: str, is_output: bool = False) -> Optional[str]:
     """Finds the first MIDI input or output port containing the given name."""
     print(f"Searching for MIDI {'output' if is_output else 'input'} port...")
     available_ports = mido.get_output_names() if is_output else mido.get_input_names()
