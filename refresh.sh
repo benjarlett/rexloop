@@ -21,6 +21,7 @@ sudo systemctl stop "$SERVICE_NAME"
 # 2. Navigate to the project root and pull latest code
 echo "-- Pulling latest code from Git... --"
 cd "$PROJECT_ROOT"
+git config core.autocrlf input
 git pull origin main
 
 # 3. Navigate to the backend directory, activate venv, and install dependencies
