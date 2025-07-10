@@ -5,6 +5,7 @@ import functools
 import socket
 
 import websockets
+import mido
 
 from config import (
     DEFAULT_HOST,
