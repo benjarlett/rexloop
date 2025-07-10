@@ -25,7 +25,7 @@ async def websocket_handler(websocket, queue: asyncio.Queue):
     print(f"UI Client connected: {websocket.remote_address} ({len(connected_clients)} total)")
     try:
         async for message in websocket:
-            print(f"Received message from UI: {message}")
+            print(f"[Server] Raw message received from UI: {message}") # Added for debugging
             try:
                 msg_data = json.loads(message)
                 if msg_data.get('command') == 'deploy':
