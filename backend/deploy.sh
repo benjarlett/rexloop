@@ -1,3 +1,3 @@
 #!/bin/bash
 
-bash ./refresh.sh
+bash ../refresh.sh
