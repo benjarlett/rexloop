@@ -75,7 +75,7 @@ async def run_deploy_script(websocket):
 
     await websocket.send("DEPLOY_START: Starting deployment...")
     process = await asyncio.create_subprocess_shell(
-        f'bash "{deploy_script_path}'',
+        f'bash "{str(deploy_script_path)}"' ,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE
     )
