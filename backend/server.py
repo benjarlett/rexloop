@@ -17,7 +17,12 @@ async def midi_broadcaster(queue: asyncio.Queue):
     while True:
         message = await queue.get()
         if connected_clients:
-            websockets.broadcast(connected_clients, message)
+            # If the message is a dictionary, assume it's a structured JSON message
+            if isinstance(message, dict):
+                websockets.broadcast(connected_clients, json.dumps(message))
+            else:
+                # Otherwise, it's a plain string message (e.g., old MIDI messages)
+                websockets.broadcast(connected_clients, message)
 
 async def websocket_handler(websocket, queue: asyncio.Queue):
     """Handles a single WebSocket connection."""
@@ -61,11 +66,13 @@ async def websocket_handler(websocket, queue: asyncio.Queue):
                         await websocket.send("MIDI_ERROR: Missing filename or trigger_note for load_midi command.")
                         print("Missing filename or trigger_note for load_midi command.")
                 else:
-                    await websocket.send("Unknown command")
+                    print("Received unknown JSON command:", msg_data)
+                    await websocket.send(json.dumps({"type": "error", "message": "Unknown command"}))
             except json.JSONDecodeError:
-                # Handle non-JSON messages (like simple MIDI messages)
+                # Handle non-JSON messages (like simple MIDI messages or deploy logs)
                 print(f"Received non-JSON message: {message}")
-                await websocket.send(f"Echo from engine: {message}")
+                # Re-send the message to the client, as it might be a status update
+                await websocket.send(message)
     finally:
         connected_clients.remove(websocket)
         print(f"UI Client disconnected: {websocket.remote_address} ({len(connected_clients)} total)")

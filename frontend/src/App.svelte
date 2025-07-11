@@ -7,6 +7,11 @@
 
   // Connection status indicators
   let backendConnected = false; // Main engine connection
+  let midiInActivity = false; // MIDI In activity indicator
+  let midiOutActivity = false; // MIDI Out activity indicator
+
+  let midiInTimeout: ReturnType<typeof setTimeout>;
+  let midiOutTimeout: ReturnType<typeof setTimeout>;
 
   let mainSocket: WebSocket; // Main backend socket
 
@@ -58,33 +63,37 @@
           console.log("Received unknown JSON message from main backend:", parsed);
         }
       } catch (e) {
-        // Handle non-JSON messages (like simple MIDI messages)
-        if (message.startsWith('MIDI_LOADED:')) {
-          loadedMidiStatus = `Loaded: ${message.substring('MIDI_LOADED:'.length).trim()}`;
-        } else if (message.startsWith('MIDI_ERROR:')) {
-          loadedMidiStatus = `Error: ${message.substring('MIDI_ERROR:'.length).trim()}`;
-        } else if (message.startsWith('DEPLOY_LOG_START')) {
-          deployLogs = ["Starting full refresh..."];
-        } else if (message.startsWith('DEPLOY_LOG_END')) {
-          // Deployment finished, check logs for success/failure
-          isDeploying = false;
-          if (deployLogs.some(log => log.startsWith('FAILED:'))) {
-            deployLogs = [...deployLogs, "FAILED: Deployment failed."];
+        // If message is not JSON, handle it as a plain string message
+        if (typeof message === 'string') {
+          if (message.startsWith('MIDI_LOADED:')) {
+            loadedMidiStatus = `Loaded: ${message.substring('MIDI_LOADED:'.length).trim()}`;
+          } else if (message.startsWith('MIDI_ERROR:')) {
+            loadedMidiStatus = `Error: ${message.substring('MIDI_ERROR:'.length).trim()}`;
+          } else if (message.startsWith('DEPLOY_LOG_START')) {
+            deployLogs = ["Starting full refresh..."];
+          } else if (message.startsWith('DEPLOY_LOG_END')) {
+            // Deployment finished, check logs for success/failure
+            isDeploying = false;
+            if (deployLogs.some(log => log.startsWith('FAILED:'))) {
+              deployLogs = [...deployLogs, "FAILED: Deployment failed."];
+            } else {
+              deployLogs = [...deployLogs, "SUCCESS: Deployment completed."];
+            }
+          } else if (message.startsWith('DEPLOY_OUTPUT:')) {
+            deployLogs = [...deployLogs, message.substring('DEPLOY_OUTPUT:'.length).trim()];
+          } else if (message.startsWith('DEPLOY_ERROR:')) {
+            deployLogs = [...deployLogs, `ERROR: ${message.substring('DEPLOY_ERROR:'.length).trim()}`];
+          } else if (message.startsWith('DEPLOY_SUCCESS:')) {
+            deployLogs = [...deployLogs, message.substring('DEPLOY_SUCCESS:'.length).trim()];
+            isDeploying = false;
+          } else if (message.startsWith('DEPLOY_FAILED:')) {
+            deployLogs = [...deployLogs, message.substring('DEPLOY_FAILED:'.length).trim()];
+            isDeploying = false;
           } else {
-            deployLogs = [...deployLogs, "SUCCESS: Deployment completed."];
+            lastMidiMessage = message;
           }
-        } else if (message.startsWith('DEPLOY_OUTPUT:')) {
-          deployLogs = [...deployLogs, message.substring('DEPLOY_OUTPUT:'.length).trim()];
-        } else if (message.startsWith('DEPLOY_ERROR:')) {
-          deployLogs = [...deployLogs, `ERROR: ${message.substring('DEPLOY_ERROR:'.length).trim()}`];
-        } else if (message.startsWith('DEPLOY_SUCCESS:')) {
-          deployLogs = [...deployLogs, message.substring('DEPLOY_SUCCESS:'.length).trim()];
-          isDeploying = false;
-        } else if (message.startsWith('DEPLOY_FAILED:')) {
-          deployLogs = [...deployLogs, message.substring('DEPLOY_FAILED:'.length).trim()];
-          isDeploying = false;
         } else {
-          lastMidiMessage = message;
+          console.error("Received unexpected message type from main backend:", message);
         }
       }
     });
@@ -152,6 +161,12 @@
   <div class="connection-status-indicators">
     <div class="status-light" class:connected={backendConnected}></div>
     <span>Main Backend</span>
+
+    <div class="status-light" class:connected={midiInActivity}></div>
+    <span>MIDI In</span>
+
+    <div class="status-light" class:connected={midiOutActivity}></div>
+    <span>MIDI Out</span>
   </div>
 
   <div class="connection-target-select">

@@ -36,8 +36,13 @@ async def play_midi_file(queue: asyncio.Queue):
     print(f"Playing MIDI file: {loaded_midi_file.filename}")
     for msg in loaded_midi_file.play():
         midi_out_port.send(msg)
-        formatted_msg = format_midi_message(msg)
-        asyncio.get_running_loop().call_soon_threadsafe(queue.put_nowait, formatted_msg)
+        # Send MIDI OUT activity to the frontend
+        midi_activity_message = {
+            'type': 'midi_activity',
+            'direction': 'out',
+            'message': format_midi_message(msg)
+        }
+        asyncio.get_running_loop().call_soon_threadsafe(queue.put_nowait, midi_activity_message)
         await asyncio.sleep(msg.time)
     print("Finished playing MIDI file.")
 
