@@ -2,3 +2,35 @@ venv/
 venv_mac/
 node_modules/
 backend-reinstall.sh
+
+# macOS system files
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+venv*/
+.env
+
+# Svelte/Vite
+node_modules/
+dist/
+.build/
+
+# Logs
+*.log
+logs/
+
+# macOS App Build Output
+dist_mac_app/
+*.icns
+
+# Archives
+*.zip
+
+# Scripts (optional)
+build_mac_app.sh
+add_app_icon.sh
+debug_app_launch.sh

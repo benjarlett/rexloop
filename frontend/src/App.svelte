@@ -58,6 +58,17 @@
           if (midiFiles.length > 0 && !selectedMidiFile) {
             selectedMidiFile = midiFiles[0]; // Select the first file by default
           }
+        } else if (parsed.type === 'midi_activity') {
+          if (parsed.direction === 'in') {
+            midiInActivity = true;
+            clearTimeout(midiInTimeout);
+            midiInTimeout = setTimeout(() => midiInActivity = false, 150); // Light blinks for 150ms
+          } else if (parsed.direction === 'out') {
+            midiOutActivity = true;
+            clearTimeout(midiOutTimeout);
+            midiOutTimeout = setTimeout(() => midiOutActivity = false, 150); // Light blinks for 150ms
+          }
+          lastMidiMessage = parsed.message; // Display the formatted MIDI message
         } else {
           // Handle other JSON messages if needed
           console.log("Received unknown JSON message from main backend:", parsed);

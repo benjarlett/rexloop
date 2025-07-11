@@ -73,10 +73,12 @@ def midi_listener(port_name: str, trigger_note: int, loop: asyncio.AbstractEvent
             print(f"Successfully opened MIDI input port: {inport.name}")
             print(f"Listening for MIDI on {inport.name}")
             for msg in inport:
-                print(f"Received MIDI message: {msg}") # Debug print
-                formatted_msg = format_midi_message(msg)
-                loop.call_soon_threadsafe(queue.put_nowait, formatted_msg)
-                print(f"Put message into queue: {formatted_msg}") # Debug print
+                midi_activity_message = {
+                    'type': 'midi_activity',
+                    'direction': 'in',
+                    'message': format_midi_message(msg)
+                }
+                loop.call_soon_threadsafe(queue.put_nowait, midi_activity_message)
 
                 if msg.type == 'note_on' and msg.note == trigger_note:
                     print(f"Trigger note {trigger_note} received! Playing WAV loop.")
